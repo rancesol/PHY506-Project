@@ -45,9 +45,9 @@ class dAlembertian :
             i_plus_1  = i + 1
 
             if i == 0 :
-                i_minus_1 = i #self.N   # the periodic BC keep giving instabilities at the edges
+                i_minus_1 = self.N
             if i == self.N :
-                i_plus_1 = i #0
+                i_plus_1 = 0
             self.h.append(0.5*D*(self.h_p[i_plus_1] + self.h_p[i_minus_1]) + (1-D)*self.h_p[i] + self.dt*self.f0_prime(self.x[i]))
 
         self.h_n = [ 0 for i in range(N+1) ]
@@ -75,9 +75,9 @@ class dAlembertian :
             i_plus_1 = i + 1
 
             if i == 0 :
-                i_minus_1 = i #self.N
+                i_minus_1 = self.N
             if i == self.N :
-                i_plus_1  = i #0
+                i_plus_1  = 0
             
             D = (self.c * self.dt / self.dx )**2
             self.h_n[i] = -self.h_p[i] + 2.*self.h[i] + D*(self.h[i_plus_1] + self.h[i_minus_1] - 2.*self.h[i])
