@@ -22,90 +22,73 @@ import matplotlib.animation as animation
 
 
 class dAlembertian :
-    def __init__(self, method='Lax_Wendroff()', N=100, L=100, c=1.0):
+    def __init__(self, method='FTCS', N=100, L=100, c=1.0):
         self.L = L                  # Length of system
         self.N = N                  # number of cells
         self.dx = float(L)/float(N) # cell size
         self.c = c                  # speed of waves
         self.t = 0.0                # time
-        self.dt = 0.1*self.dx #/c         # time step size
+        self.dt = 0.01              # time step size
         self.step_number = 0        # integration step number
         self.method = method        # integration algorithm function
 
         self.x = []         # grid points
-        self.h0 = []        # initial wave form
-#        self.h_p = []       # previous wave amplitude
+        self.h_p = []       # previous wave amplitude
         self.h = []         # current wave amplitude
         self.h_n = []       # next wave amplitude
-        self.h_nn = []      # wave amp. at next-next time step (due to 2nd order derivatives)
 
-        self.dx = L / float(N)
         self.x = [ i*self.dx for i in range(N+1) ]
-        self.h0 = [ self.f0(self.x[i]) for i in range(N+1) ]
-#        self.h_p = [ self.h0[i] for i in range(N+1) ]
-        self.h = [ self.h0[i] for i in range(N+1) ]
-        self.h_n = [ self.h[i] for i in range(N+1) ]
-        self.h_nn = [ self.h_n[i] for i in range(N+1) ]
+        self.h_p = [ self.f0(self.x[i]) for i in range(N+1) ]   # h(x,t=0) from initial waveform
+        D = (self.c * self.dt / self.dx)**2
+        for i in range(self.N+1) :                      # h(x,t=dt) from derivative of
+            i_minus_1 = i - 1                           # of initial waveform
+            i_plus_1  = i + 1
+
+            if i == 0 :
+                i_minus_1 = i #self.N   # the periodic BC keep giving instabilities at the edges
+            if i == self.N :
+                i_plus_1 = i #0
+            self.h.append(0.5*D*(self.h_p[i_plus_1] + self.h_p[i_minus_1]) + (1-D)*self.h_p[i] + self.dt*self.f0_prime(self.x[i]))
+
+        self.h_n = [ 0 for i in range(N+1) ]
 
     
-    def f0(self, x):            # initialize wave form
-        self.x0 = self.L / 2.0  # starting position
-        self.sigma = 0.1*self.L # width
-
+    def f0(self, x):                # initialize wave form
+        self.x0 = self.L / 2.0      # starting position
+        self.sigma = 0.05*self.L    # width
         k = math.pi / self.sigma
         gaussian = math.exp(-(x - self.x0)**2 / (2*self.sigma**2))
-        return math.cos(k*(x-self.x0))*gaussian
+        return math.sin(k*(x-self.x0))*gaussian/10.
 
 
-    def FTCS(self):
+    def f0_prime(self, x):      # assumed the time dependence is only in sin factor
+        self.x0 = self.L / 2.0
+        self.sigma = 0.05*self.L
+        k = math.pi / self.sigma
+        gaussian = math.exp(-(x - self.x0)**2 / (2*self.sigma**2))
+        return math.cos(k*(x - self.x0))*gaussian*self.c / (10.*k)
+
+
+    def FTCS(self):             # not really FTCS method but I didn't have another name
         for i in range(self.N+1):
             i_minus_1 = i - 1
             i_plus_1 = i + 1
-            i_plus_2 = i + 2
 
-            if i == self.N - 1 :
-                i_plus_2 = 0
             if i == 0 :
-                i_minus_1 = self.N
+                i_minus_1 = i #self.N
             if i == self.N :
-                i_plus_2 = 1
-                i_plus_1 = 0
+                i_plus_1  = i #0
             
-            self.h_nn[i] = 2*self.h_n[i] - self.h[i] + ( self.h[i_plus_2] - 2*self.h[i_plus_1] + self.h[i] ) * self.c**2 * self.dt**2 / self.dx**2
-#            D = (self.c * self.dt / self.dx)**2
-#            self.h_n[i] = self.h_p[i] - 2*self.h[i] + D*(self.h[i_plus_1] + self.h[i_minus_1] - 2*self.h[i])
-            #self.h_nn[0] = self.h_nn[self.N]
-
-    def Lax_Wendroff(self) :
-        D = (self.c * self.dt / self.dx)**2 / 2.0
-        for i in range(self.N+1):
-            i_plus_1  = i + 1
-            i_plus_2  = i + 2
-            i_minus_1 = i - 1
-
-            if i == self.N - 1 :
-                i_plus_2 = 0
-            if i == self.N :
-                i_plus_2 = 1
-                i_plus_1 = 0
-            if i == 0 :
-                i_minus_1 = self.N
-            
-            self.h_nn[i] = 2*self.h_n[i] + self.h[i] + ( self.h[i_plus_2] - 2*self.h[i_plus_1] - self.h[i] ) * self.dt**2 / self.dx**2
-            self.h_nn[i] += D * (self.h[i_plus_1] + self.h[i_minus_1] - 2 * self.h[i])
+            D = (self.c * self.dt / self.dx )**2
+            self.h_n[i] = -self.h_p[i] + 2.*self.h[i] + D*(self.h[i_plus_1] + self.h[i_minus_1] - 2.*self.h[i])
 
 
     def take_step(self):
         eval('self.' + self.method )
         swap = self.h
         self.h = self.h_n
-        self.h_n = self.h_nn
-        self.h_nn = swap
-
-#        swap = self.h
-#        self.h = self.h_n
-#        self.h_n = self.h_p
-#        self.h_p = swap
+        self.h_n = self.h_p
+        self.h_p = swap
 
         self.t += self.dt
         self.step_number += 1
@@ -126,9 +109,10 @@ class Animator :
         self.dalembertian = dalembertian
         self.t = 0.
         self.fig, self.ax = plt.subplots()
-        self.ax.set_ylim(-2.,2.)
+        self.ax.set_ylim(-.5,.5)
         initvals = [ ix for ix in self.dalembertian.h]
-        self.line, = self.ax.plot(initvals)
+        x = [ ix for ix in self.dalembertian.x ]
+        self.line, = self.ax.plot(x,initvals)
 
 
     def update(self, data) :
@@ -157,7 +141,7 @@ class Animator :
                                             blit=False )
 
 
-dalembertian = dAlembertian( method='FTCS()', N=100, L=100, c=1. )
+dalembertian = dAlembertian( method='FTCS()', N=500, L=100, c=10. )
 animator = Animator( dalembertian=dalembertian )
 animator.animate()
 plt.show()
