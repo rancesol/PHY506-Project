@@ -3,8 +3,8 @@
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
   Steps:
-    1)  solve wave equation in 1d without source                    <==
-    2)  include a source term
+    1)  solve wave equation in 1d without source
+    2)  include a source term                                       <==
     3)  make source term an infall under the slow motion condition
     4)  perform spectral analysis and get the "chirp"
     5)  remove slow motion condition
@@ -32,41 +32,26 @@ class dAlembertian :
         self.step_number = 0        # integration step number
         self.method = method        # integration algorithm function
 
+        self.Tloc = self.L / 20.0    # source location
+
         self.x = []         # grid points
         self.h_p = []       # previous wave amplitude
         self.h = []         # current wave amplitude
         self.h_n = []       # next wave amplitude
 
         self.x = [ i*self.dx for i in range(N+1) ]
-        self.h_p = [ self.f0(self.x[i]) for i in range(N+1) ]   # h(x,t=0) from initial waveform
-        D = (self.c * self.dt / self.dx)**2
-        for i in range(self.N+1) :                      # h(x,t=dt) from derivative of
-            i_minus_1 = i - 1                           # of initial waveform
-            i_plus_1  = i + 1
-
-            if i == 0 :
-                i_minus_1 = self.N
-            if i == self.N :
-                i_plus_1 = 0
-            self.h.append(0.5*D*(self.h_p[i_plus_1] + self.h_p[i_minus_1]) + (1-D)*self.h_p[i] + self.dt*self.f0_prime(self.x[i]))
-
+        self.h_p = [ 0 for i in range(N+1) ]    # take initial waveform as zero everywhere
+        self.h   = [ 0 for i in range(N+1) ]
         self.h_n = [ 0 for i in range(N+1) ]
 
-    
-    def f0(self, x):                # initialize wave form
-        self.x0 = self.L / 2.0      # starting position
-        self.sigma = 0.05*self.L    # width
-        k = math.pi / self.sigma
-        gaussian = math.exp(-(x - self.x0)**2 / (2*self.sigma**2))
-        return math.sin(k*(x-self.x0))*gaussian/10.
 
-
-    def f0_prime(self, x):      # assumed the time dependence is only in sin factor
-        self.x0 = self.L / 2.0
-        self.sigma = 0.05*self.L
-        k = math.pi / self.sigma
-        gaussian = math.exp(-(x - self.x0)**2 / (2*self.sigma**2))
-        return math.cos(k*(x - self.x0))*gaussian*self.c / (10.*k)
+    def T(self, x, t):          # source term
+        omega = 1.*(2.*math.pi) # oscillation frequency
+        Tmax  = 30.             # strength of source
+        if abs(x-self.Tloc) <= self.dx :
+            return Tmax * math.cos(omega*t**2)
+        else :
+            return 0
 
 
     def FTCS(self):             # not really FTCS method but I didn't have another name
@@ -80,7 +65,10 @@ class dAlembertian :
                 i_plus_1  = 0
             
             D = (self.c * self.dt / self.dx )**2
-            self.h_n[i] = -self.h_p[i] + 2.*self.h[i] + D*(self.h[i_plus_1] + self.h[i_minus_1] - 2.*self.h[i])
+            self.h_n[i] = -self.h_p[i] + 2.*self.h[i] + D*(self.h[i_plus_1] + self.h[i_minus_1] - 2.*self.h[i]) + self.T(self.dx*i, self.t) * self.dt**2
+
+            if self.x[i] < self.Tloc :
+                self.h_n[i] *= (math.exp(math.log(2)*self.x[i]/self.Tloc) - 1)
 
 
     def take_step(self):
