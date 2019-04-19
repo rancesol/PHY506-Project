@@ -20,6 +20,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+omega_file = open("omega.data", "w")
 
 class dAlembertian :
     def __init__(self, method='FTCS', N=100, L=100, c=1.0):
@@ -27,31 +28,49 @@ class dAlembertian :
         self.N = N                  # number of cells
         self.dx = float(L)/float(N) # cell size
         self.c = c                  # speed of waves
+        self.G = 6.67e-11           # Gravitational constant
         self.t = 0.0                # time
-        self.dt = 0.01              # time step size
+        self.dt = 0.001              # time step size
         self.step_number = 0        # integration step number
         self.method = method        # integration algorithm function
 
-        self.Tloc = self.L / 20.0    # source location
+        self.Tloc = self.L / 20.0   # source location
+        self.omega_o = 1.0          # initial orbital frequency of source masses
+        self.w = []                 # orbital frequency of source masses
+        self.M = 1.0                # mass of source objects (taken to be the same)
+        self.R_o = 1.0              # radius of orbit
+        self.R_M = 1.0               # radius of masses
 
         self.x = []         # grid points
         self.h_p = []       # previous wave amplitude
         self.h = []         # current wave amplitude
         self.h_n = []       # next wave amplitude
 
-        self.x = [ i*self.dx for i in range(N+1) ]
+        # initialize
+        self.w.append(self.omega_o)
+        self.x   = [ i*self.dx for i in range(N+1) ]
         self.h_p = [ 0 for i in range(N+1) ]    # take initial waveform as zero everywhere
         self.h   = [ 0 for i in range(N+1) ]
         self.h_n = [ 0 for i in range(N+1) ]
 
 
     def T(self, x, t):          # source term
-        omega = 1.*(2.*math.pi) # oscillation frequency
-        Tmax  = 30.             # strength of source
+        Tmax  = 500.            # strength of source
         if abs(x-self.Tloc) <= self.dx :
-            return Tmax * math.cos(omega*t**2)
+            self.omega()        # update frequency
+            if abs(self.w[-1] - math.sqrt(self.G*self.M/(4.*self.R_M**3))) < 0.1 :
+                    return 0
+            else :
+                    return Tmax * math.sin(2.*self.w[-1]*t)
         else :
             return 0
+
+
+    def omega(self) :
+        E_i = - self.G*self.M**2 / (4.*self.R_o)
+        L   = (8./5.)*((2.*self.G)**(4./3.))*(self.M**(10./3.))*(self.w[-1]**(10./3.))
+        self.w.append(self.w[-1] - (3./2.)*self.w[-1]*L*self.dt/(E_i-L))
+        omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\n')
 
 
     def FTCS(self):             # not really FTCS method but I didn't have another name
@@ -129,7 +148,8 @@ class Animator :
                                             blit=False )
 
 
-dalembertian = dAlembertian( method='FTCS()', N=500, L=100, c=10. )
+dalembertian = dAlembertian( method='FTCS()', N=10000, L=1000, c=50. )
 animator = Animator( dalembertian=dalembertian )
 animator.animate()
 plt.show()
+omega_file.close()
