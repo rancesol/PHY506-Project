@@ -4,8 +4,8 @@
 """
   Steps:
     1)  solve wave equation in 1d without source
-    2)  include a source term                                       <==
-    3)  make source term an infall under the slow motion condition
+    2)  include a source term
+    3)  make source term an infall under the slow motion condition <==
     4)  perform spectral analysis and get the "chirp"
     5)  remove slow motion condition
 """
@@ -22,24 +22,35 @@ import matplotlib.animation as animation
 
 omega_file = open("omega.data", "w")
 
+# Geometrized units:
+# G = 6.67e-11 => 1
+# c = 3e8 => 1
+# 1M_sun = 2e30kg => 1.48e3 m
+# 1s = 3e8 m
+# 1pc = 3e16m
+
+
+
 class dAlembertian :
-    def __init__(self, method='FTCS', N=100, L=100, c=1.0):
+    def __init__(self, method='KDRS', N=100, L=100, c=1.0):
         self.L = L                  # Length of system
         self.N = N                  # number of cells
         self.dx = float(L)/float(N) # cell size
         self.c = c                  # speed of waves
         self.G = 6.67e-11           # Gravitational constant
+        self.Msol = 2.e30           # solar mass in meters
         self.t = 0.0                # time
-        self.dt = 0.001              # time step size
+        self.dt = 0.01              # time step size
         self.step_number = 0        # integration step number
         self.method = method        # integration algorithm function
 
-        self.Tloc = self.L / 20.0   # source location
-        self.omega_o = 1.0          # initial orbital frequency of source masses
+        self.Tloc = self.L / 50.0   # source location
         self.w = []                 # orbital frequency of source masses
-        self.M = 1.0                # mass of source objects (taken to be the same)
-        self.R_o = 1.0              # radius of orbit
-        self.R_M = 1.0               # radius of masses
+        self.M = 32.5*self.Msol     # mass of source objects (taken to be the same)
+        self.R_o = 1.e11            # starting orbital radius (about 1AU)
+        self.R_M = 350.e3           # radius of masses (350km -- approx radius of BHs in GW150914)
+        self.omega_o = math.sqrt(self.G*self.M/(4.*self.R_o**3))    # initial freq.
+        self.omega_max = math.sqrt(self.G*self.M/(4.*self.R_M**3))  # freq. at merger
 
         self.x = []         # grid points
         self.h_p = []       # previous wave amplitude
@@ -55,25 +66,29 @@ class dAlembertian :
 
 
     def T(self, x, t):          # source term
-        Tmax  = 500.            # strength of source
-        if abs(x-self.Tloc) <= self.dx :
-            self.omega()        # update frequency
-            if abs(self.w[-1] - math.sqrt(self.G*self.M/(4.*self.R_M**3))) < 0.1 :
+        Tmax  = 500.            # strength of source (kept const. for simplicity)
+        if abs(x-self.Tloc) < self.dx/2. :
+            self.w_update()     # update frequency
+            if self.w[-1] >= self.omega_max :
                     return 0
             else :
-                    return Tmax * math.sin(2.*self.w[-1]*t)
+                    return Tmax * math.sin(2.*self.w[-1]*t) # GWs have 2*freq. of source
         else :
             return 0
 
 
-    def omega(self) :
+    def w_update(self) :    # update orbital frequency
         E_i = - self.G*self.M**2 / (4.*self.R_o)
-        L   = (8./5.)*((2.*self.G)**(4./3.))*(self.M**(10./3.))*(self.w[-1]**(10./3.))
-        self.w.append(self.w[-1] - (3./2.)*self.w[-1]*L*self.dt/(E_i-L))
-        omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\n')
+        E_GW = 0.           # energy radiated away in GWs
+        E_GW += (8./5.)*((2.*self.G)**(4./3.))*(self.M**(10./3.))*(self.w[-1]**(10./3.))*self.dt
+        self.w.append(self.w[-1] - (3./2.)*self.w[-1]*E_GW*self.dt/(E_i-E_GW))
+        if self.w[-1] >= self.omega_max :
+            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\n')
+        else :
+            omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\n')
 
 
-    def FTCS(self):             # not really FTCS method but I didn't have another name
+    def KDRS(self):             # KDRS method (not a thing!)
         for i in range(self.N+1):
             i_minus_1 = i - 1
             i_plus_1 = i + 1
@@ -84,10 +99,11 @@ class dAlembertian :
                 i_plus_1  = 0
             
             D = (self.c * self.dt / self.dx )**2
-            self.h_n[i] = -self.h_p[i] + 2.*self.h[i] + D*(self.h[i_plus_1] + self.h[i_minus_1] - 2.*self.h[i]) + self.T(self.dx*i, self.t) * self.dt**2
+            self.h_n[i] = -self.h_p[i] + 2.*self.h[i] + D*(self.h[i_plus_1] +
+                    self.h[i_minus_1] - 2.*self.h[i]) + self.T(self.dx*i, self.t) * self.dt**2
 
-            if self.x[i] < self.Tloc :
-                self.h_n[i] *= (math.exp(math.log(2)*self.x[i]/self.Tloc) - 1)
+            if self.x[i] < self.Tloc :  # kill off everything leftward of the source
+                self.h_n[i] *= 0.0
 
 
     def take_step(self):
@@ -100,14 +116,6 @@ class dAlembertian :
         self.t += self.dt
         self.step_number += 1
 
-    
-    def sav_h(self, plot_number):
-        file_name = 'h_' + repr(plot_number) + '.data'
-        file = open(file_name, 'w')
-        for i in range(self.N):
-            file.write(repr(self.x[i]) + '\t' + repr(self.h[i]) + '\n')
-        file.close()
-        print ' saved h(x,t) at t = ', self.t, ' in ', file_name
 
 
 class Animator :
@@ -148,7 +156,7 @@ class Animator :
                                             blit=False )
 
 
-dalembertian = dAlembertian( method='FTCS()', N=10000, L=1000, c=50. )
+dalembertian = dAlembertian( method='KDRS()', N=10000, L=1000, c=10. )
 animator = Animator( dalembertian=dalembertian )
 animator.animate()
 plt.show()
