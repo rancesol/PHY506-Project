@@ -6,13 +6,15 @@ def read_plot(filename) :
         lines = file.readlines()
         x = []
         y = []
+        z = []
         for line in lines :
             if line != '\n' :
                 words = line.split()
-                ix, iy = [float(s) for s in words]
+                ix, iy, iz = [float(s) for s in words]
                 x.append( ix )
                 y.append( iy )
-        return x,y
+                z.append( iz )
+        return x,y,z
     except:
         print 'Error in read_plot. Returning None'
         return None
