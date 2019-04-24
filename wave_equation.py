@@ -36,11 +36,11 @@ class dAlembertian :
         self.L = L                  # Length of system
         self.N = N                  # number of cells
         self.dx = float(L)/float(N) # cell size
-        self.c = 2.99792e8 #c                  # speed of waves
-        self.G = 6.67408e-11           # Gravitational constant
-        self.Msol = 1.9891e30           # solar mass in meters
+        self.c = 2.99792e8          # speed of waves
+        self.G = 6.67408e-11        # Gravitational constant
+        self.Msol = 1.9891e30       # solar mass in meters
         self.t = 0.0                # time
-        self.dt = 0.01              # time step size
+        self.dt = 0.001             # time step size
         self.step_number = 0        # integration step number
         self.method = method        # integration algorithm function
 
@@ -48,7 +48,7 @@ class dAlembertian :
         self.w = []                 # orbital frequency of source masses
         self.M = 32.5*self.Msol     # mass of source objects (taken to be the same)
         self.eta = 1./4             # symmetric mass difference
-        self.R_o = 2.e6            # starting orbital radius (about 1AU)
+        self.R_o = 2.e6             # starting orbital radius (about 1AU)
         self.R_M = 350.e3           # radius of masses (350km -- approx radius of BHs in GW150914)
         self.omega_o = math.sqrt(self.G*self.M/(4.*self.R_o**3))    # initial freq.
         self.omega_max = math.sqrt(self.G*self.M/(4.*self.R_M**3))  # freq. at merger
@@ -66,40 +66,23 @@ class dAlembertian :
         self.h_n = [ 0 for i in range(N+1) ]
 
 
-    def T(self, x, t):          # source term
-        Tmax  = 500.            # strength of source (kept const. for simplicity)
+    def T(self, x, t) :     # source term
         if abs(x-self.Tloc) < self.dx/2. :
             if self.w[-1] >= self.omega_max :
                 return 0
             else :
                 self.w_update4()    # update freq.
-                print self.w[-1]
+                Tmax = self.Amp_update() # update amplitude of produced waves
                 return Tmax * math.sin(2.*self.w[-1]*t) # GWs have 2*freq. of source
         else :
             return 0
 
 
-    def w_update(self) :    # update orbital frequency
-        E_i = - self.G*self.M**2 / (4.*self.R_o)
-        E_GW = 0.           # energy radiated away in GWs
-        E_GW += (8./5.)*((2.*self.G)**(4./3.))*(self.M**(10./3.))*(self.w[-1]**(10./3.))*self.dt
-        self.w.append(self.w[-1] - (3./2.)*self.w[-1]*E_GW*self.dt/(E_i-E_GW))
-        if self.w[-1] >= self.omega_max :
-            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\n')
-        else :
-            omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\n')
-
-
-    def w_update2(self) :   # update orbit freq. (Eq.2.33 Analysis of GW Data - Jaranowski, Krolak)
-        self.w.append(self.omega_o*(1. -
-            256.*(self.G*self.M)**(5./3)*self.omega_o**(8./3)*self.t/(5.*self.c**5))**(-3./8))
-        if self.w[-1] >= self.omega_max :
-            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\n')
-        else :
-            omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\n')
+    def Amp_update(self) :   # the amplitude is dependent on the frequency
+        return 4.*(self.G*self.M)**(5./3)*self.w[-1]**(2./3) / (self.c**4*2**(1./3))
 
     
-    def w_update3(self) :
+    def w_update3(self) :   # using Post-Newtonian corrections
         eta = self.eta
         x_o = (self.G*self.M*self.omega_o)**(2./3)/self.c**2
         t_hat = self.c**3*self.t/(self.G*self.M)
@@ -108,18 +91,18 @@ class dAlembertian :
         self.w.append(x**(3./2)*self.c**3/(self.G*self.M))
 
         if self.w[-1] >= self.omega_max :
-            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\n')
+            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t' + repr(0.0) + '\n')
         else :
-            omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\n')
+            omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\t' + repr(self.Amp_update()) + '\n')
 
 
-    def w_update4(self) :
+    def w_update4(self) :   # assuming adiabatic infall without corrective terms
         t_c = 5.*self.c**5*self.R_o**4/(256.*self.G**3*2*self.M**3)
         self.w.append(2.**(1./8)*5.**(3./8)*self.c**(15./8)*(t_c - self.t)**(-3./8)/(8.*math.pi*self.G**(5./8)*self.M**(5./8)))
         if self.w[-1] >= self.omega_max :
-            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\n')
+            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t' + repr(0.0) + '\n')
         else :
-            omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\n')
+            omega_file.write(repr(self.t) + '\t' + repr(2.*self.w[-1]) + '\t' + repr(self.Amp_update()) + '\n')
 
 
     def F(self, x) :
