@@ -40,7 +40,7 @@ class dAlembertian :
         self.G = 6.67408e-11        # Gravitational constant
         self.Msol = 1.9891e30       # solar mass in meters
         self.t = 0.0                # time
-        self.dt = 0.0001             # time step size
+        self.dt = 0.0005             # time step size
         self.step_number = 0        # integration step number
         self.method = method        # integration algorithm function
 
@@ -48,7 +48,7 @@ class dAlembertian :
         self.w = []                 # frequency of GWs
         self.M = 32.5*self.Msol     # mass of source objects (taken to be the same)
         self.eta = 1./4             # symmetric mass difference
-        self.R_o = 0.6e6             # starting orbital radius
+        self.R_o = 1.e6             # starting orbital radius
         self.R_M = 350.e3           # radius of masses (350km -- approx radius of BHs in GW150914)
         self.omega_o = math.sqrt(self.G*self.M/(4.*self.R_o**3))    # initial orbital freq.
         self.omega_max = math.sqrt(self.G*self.M/(4.*self.R_M**3))  # freq. at merger
@@ -72,7 +72,7 @@ class dAlembertian :
             if self.t > self.t_c : #self.w[-1] >= self.omega_max :
                 return 0
             else :
-                self.w_update3()    # update orbital freq.
+                self.w_update4()    # update orbital freq.
                 print self.w[-1]
                 Tmax = self.Amp_update() # update amplitude of produced waves
                 return Tmax * math.sin(self.w[-1]*t)
@@ -92,7 +92,7 @@ class dAlembertian :
 #        x = self.Y(tau)
 #        self.w.append(x**(3./2)*self.c**3/(self.G*self.M/2))
 
-        if self.t < self.t_c : #self.w[-1] >= self.omega_max :
+        if self.t < self.t_c :
             x_o = (self.G*self.M*self.omega_o)**(2./3) / self.c**2
             t_hat = self.c**3*self.t / (self.G*self.M)
             tau = self.eta*(self.t_c - self.t)*self.c**3 / (5.*self.G*self.M)
@@ -129,8 +129,8 @@ class dAlembertian :
         Y  = 1. + (743./4032 + 11.*eta/48)*tau**(-1./4) - math.pi*tau**(-3./8)/5
         Y += (19583./254016 + 24401.*eta/193536 + 31.*eta**2/288)*tau**(-1./2)
         Y += (-11891./53760 + 109.*eta/1920)*math.pi*tau**(-5./8)
-        Y += (math.pi**2/6 - 10052469856691./6008596070400 + 107.*gamma_E/420 - 107.*math.log(tau/256)/3360)*tau**(-3./4)
-        Y += (-113868647./433520640 - 31821.*eta/143360 + 294941.*eta**2/3870720)*math.pi*tau**(-7./8)
+#        Y += (math.pi**2/6 - 10052469856691./6008596070400 + 107.*gamma_E/420 - 107.*math.log(tau/256)/3360)*tau**(-3./4)
+#        Y += (-113868647./433520640 - 31821.*eta/143360 + 294941.*eta**2/3870720)*math.pi*tau**(-7./8)
         Y *= tau**(-1./4)/4
         return Y
 
