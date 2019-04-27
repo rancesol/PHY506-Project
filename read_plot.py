@@ -7,14 +7,16 @@ def read_plot(filename) :
         x = []
         y = []
         z = []
+        v = []
         for line in lines :
             if line != '\n' :
                 words = line.split()
-                ix, iy, iz = [float(s) for s in words]
+                ix, iy, iz, iv = [float(s) for s in words]
                 x.append( ix )
                 y.append( iy )
                 z.append( iz )
-        return x,y,z
+                v.append( iv )
+        return x,y,z,v
     except:
         print 'Error in read_plot. Returning None'
         return None
