@@ -20,16 +20,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+
 omega_file = open("omega.data", "w")
-
-# Geometrized units:
-# G = 6.67e-11 => 1
-# c = 3e8 => 1
-# 1M_sun = 2e30kg => 1.48e3 m
-# 1s = 3e8 m
-# 1pc = 3e16m
-
-
 
 class dAlembertian :
     def __init__(self, method='KDRS', N=100, L=100):
@@ -40,7 +32,7 @@ class dAlembertian :
         self.G = 6.67408e-11        # Gravitational constant
         self.Msol = 1.9891e30       # solar mass in meters
         self.t = 0.0                # time
-        self.dt = 0.0001             # time step size
+        self.dt = 1./4096             # time step size
         self.step_number = 0        # integration step number
         self.method = method        # integration algorithm function
 
@@ -53,7 +45,8 @@ class dAlembertian :
         self.R_M = 350.e3           # radius of masses (350km -- approx radius of BHs in GW150914)
         self.omega_o = math.sqrt(self.G*self.M/(4.*self.R_o**3))    # initial orbital freq.
         self.omega_max = math.sqrt(self.G*self.M/(4.*self.R_M**3))  # freq. at merger
-        self.t_c = 5.*self.c**5 / (256.*(self.G*self.M)**(5./3)*2.*self.omega_o**(8./3))
+        self.t_c = 5.*self.c**5 / (256.*(self.G*self.M)**(5./3)*2.*(self.omega_o/2)**(8./3))
+        self.t_cPN = self.F((self.G*self.M*self.omega_o/2)**(2./3) / self.c**2) * (self.G*self.M)/self.c**3
 
         self.x = []         # grid points
         self.h_p = []       # previous wave amplitude
@@ -70,11 +63,10 @@ class dAlembertian :
 
     def T(self, x, t) :     # source term
         if abs(x-self.Tloc) < self.dx/2. :
-            if self.t > self.t_c : #self.w[-1] >= self.omega_max :
+            if self.t > self.t_cPN :
                 return 0
             else :
-                print self.w[-1]
-                self.w_update3()    # update orbital freq.
+                self.w_update_PN()   # update orbital freq.
                 Tmax = self.Amp_update() # update amplitude of produced waves
                 return Tmax * math.sin(self.w[-1]*t)
         else :
@@ -85,24 +77,53 @@ class dAlembertian :
         return 4.*(self.G*self.M)**(5./3)*self.w[-1]**(2./3) / (2.*self.Dist*self.c**4)
 
 
-    def w_update3(self) :   # using Post-Newtonian corrections
+    def w_update_N(self) :  # assuming adiabatic infall
+        # calculate next ang. freq.
+        self.w.append(5.**(3./8)*(self.c/2)**(15./8) /
+                ((self.G*self.M)**(5./8)*(self.t_c - self.t)**(3./8)))
+        V = (self.G*self.M*self.w[-1])**(1./3)      # calculate velocity
+
+        # send to data file
         if self.t < self.t_c :
-            x_o = (self.G*self.M*self.omega_o)**(2./3) / self.c**2
-            t_hat = self.c**3*self.t / (self.G*self.M)
-            tau = self.eta*(self.F(x_o)- t_hat)/5
-            x = self.Y(tau)
-            self.w.append(x**(3./2)*self.c**3 / (self.G*self.M/2))
-            omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t' + repr(self.Amp_update()) + '\n')
+            omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t' + repr(self.Amp_update())
+                    + '\t' + repr(V) + '\n')
         else :
-            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t' + repr(0.0) + '\n')
+            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t' + repr(0.0) + '\t'
+                    + repr(0.0) + '\n')
 
 
-    def w_update4(self) :   # assuming adiabatic infall without corrective terms
-        self.w.append(5.**(3./8)*(self.c/2)**(15./8) / ((self.G*self.M)**(5./8)*(self.t_c - self.t)**(3./8)))
-        if self.t < self.t_c : #self.w[-1] >= self.omega_max :
-            omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t' + repr(self.Amp_update()) + '\n')
+    def w_update_PN(self) :   # using Post-Newtonian corrections
+        x_o = (self.G*self.M*self.omega_o/2)**(2./3) / self.c**2
+        t_hat = self.c**3*self.t / (self.G*self.M)
+        tau = self.eta*(self.F(x_o) - t_hat)/5
+        x = self.Y(tau)
+        self.w.append(x**(3./2)*self.c**3 / (self.G*self.M/2))
+        V = (self.G*self.M*self.w[-1])**(1./3)
+        if self.t < self.t_cPN :
+#            x_o = (self.G*self.M*self.omega_o/2)**(2./3) / self.c**2
+#            t_hat = self.c**3*self.t / (self.G*self.M)
+#            tau = self.eta*(self.F(x_o)- t_hat)/5
+#            print repr(self.F(x_o)) + '\t' + repr(self.t_c*self.c**3/(self.G*self.M))
+#            x = self.Y(tau)
+#            self.w.append(x**(3./2)*self.c**3 / (self.G*self.M/2))
+#            V = (self.G*self.M*self.w[-1])**(1./3)  # approx. speed in orbit
+            omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t' + repr(self.Amp_update())
+                    + '\t' + repr(V) + '\n')
         else :
-            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t' + repr(0.0) + '\n')
+            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t' + repr(0.0) + '\t'
+                    + repr(0.0) + '\n')
+
+
+#    def w_update4(self) :   # assuming adiabatic infall without corrective terms
+#        self.w.append(5.**(3./8)*(self.c/2)**(15./8) /
+#                ((self.G*self.M)**(5./8)*(self.t_c - self.t)**(3./8)))
+#        V = (self.G*self.M*self.w[-1])**(1./3)  # approx. speed in orbit
+#        if self.t < self.t_c :
+#            omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t'
+#                    + repr(self.Amp_update()) + '\t' + repr(V) + '\n')
+#        else :
+#            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t'
+#                    + repr(0.0) + '\t' + repr(0.0) + '\n')
 
 
     def F(self, x) :
@@ -204,7 +225,7 @@ class Animator :
 #plt.show()
 
 dal = dAlembertian(method='KDRS()', N=10000, L=1000)
-while dal.t < dal.t_c :
+while dal.t < dal.t_cPN :
     dal.take_step()
 
 omega_file.close()
