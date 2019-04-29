@@ -45,7 +45,7 @@ class dAlembertian :
         self.R_M = 350.e3           # radius of masses (350km -- approx radius of BHs in GW150914)
         self.omega_o = math.sqrt(self.G*self.M/(4.*self.R_o**3))    # initial orbital freq.
         self.omega_max = math.sqrt(self.G*self.M/(4.*self.R_M**3))  # freq. at merger
-        self.t_c = 5.*self.c**5 / (256.*(self.G*self.M)**(5./3)*2.*(self.omega_o/2)**(8./3))
+        self.t_cN = 5.*self.c**5 / (256.*(self.G*self.M)**(5./3)*2.*(self.omega_o/2)**(8./3))
         self.t_cPN = self.F((self.G*self.M*self.omega_o/2)**(2./3) / self.c**2) * (self.G*self.M)/self.c**3
 
         self.x = []         # grid points
@@ -80,11 +80,11 @@ class dAlembertian :
     def w_update_N(self) :  # assuming adiabatic infall
         # calculate next ang. freq.
         self.w.append(5.**(3./8)*(self.c/2)**(15./8) /
-                ((self.G*self.M)**(5./8)*(self.t_c - self.t)**(3./8)))
+                ((self.G*self.M)**(5./8)*(self.t_cN - self.t)**(3./8)))
         V = (self.G*self.M*self.w[-1])**(1./3)      # calculate velocity
 
         # send to data file
-        if self.t < self.t_c :
+        if self.t < self.t_cN :
             omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t' + repr(self.Amp_update())
                     + '\t' + repr(V) + '\n')
         else :
@@ -100,30 +100,11 @@ class dAlembertian :
         self.w.append(x**(3./2)*self.c**3 / (self.G*self.M/2))
         V = (self.G*self.M*self.w[-1])**(1./3)
         if self.t < self.t_cPN :
-#            x_o = (self.G*self.M*self.omega_o/2)**(2./3) / self.c**2
-#            t_hat = self.c**3*self.t / (self.G*self.M)
-#            tau = self.eta*(self.F(x_o)- t_hat)/5
-#            print repr(self.F(x_o)) + '\t' + repr(self.t_c*self.c**3/(self.G*self.M))
-#            x = self.Y(tau)
-#            self.w.append(x**(3./2)*self.c**3 / (self.G*self.M/2))
-#            V = (self.G*self.M*self.w[-1])**(1./3)  # approx. speed in orbit
             omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t' + repr(self.Amp_update())
                     + '\t' + repr(V) + '\n')
         else :
             omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t' + repr(0.0) + '\t'
                     + repr(0.0) + '\n')
-
-
-#    def w_update4(self) :   # assuming adiabatic infall without corrective terms
-#        self.w.append(5.**(3./8)*(self.c/2)**(15./8) /
-#                ((self.G*self.M)**(5./8)*(self.t_c - self.t)**(3./8)))
-#        V = (self.G*self.M*self.w[-1])**(1./3)  # approx. speed in orbit
-#        if self.t < self.t_c :
-#            omega_file.write(repr(self.t) + '\t' + repr(self.w[-1]) + '\t'
-#                    + repr(self.Amp_update()) + '\t' + repr(V) + '\n')
-#        else :
-#            omega_file.write(repr(self.t) + '\t' + repr(0.0) + '\t'
-#                    + repr(0.0) + '\t' + repr(0.0) + '\n')
 
 
     def F(self, x) :
